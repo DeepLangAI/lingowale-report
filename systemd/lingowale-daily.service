@@ -1,0 +1,8 @@
+[Unit]
+Description=Lingowale daily metrics push
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lingowale-daily
+EnvironmentFile=/opt/lingowale-daily/.env
+ExecStart=/opt/lingowale-daily/.venv/bin/python -m lingowale_daily.main
