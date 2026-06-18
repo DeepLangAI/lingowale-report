@@ -2,7 +2,7 @@
 Description=Run lingowale daily push at 09:30 Beijing time
 
 [Timer]
-OnCalendar=*-*-* 09:30:00
+OnCalendar=*-*-* 10:10:00
 Persistent=true
 
 [Install]
