@@ -110,14 +110,40 @@ class CombinedReportCard:
 
         # 新增付费
         new_subs = payment.get("new_subs", [])
+        new_trial = payment.get("new_trial", [])
         elements.append({"tag": "markdown", "content": f"T-1（{yesterday}）新增付费用户（不含试用）"})
         if new_subs:
             elements.append(_new_subs_chart(new_subs))
         else:
             elements.append({"tag": "markdown", "content": "昨日无新增付费"})
 
-        # 会员分布 + MRR
+        # 试用会员情况 — 灰底网格展示
         distribution = payment.get("distribution", [])
+        trial_users = sum(int(r.get("member_count", 0)) for r in distribution if r.get("plan_status") == "trial")
+        trial_conv = payment.get("trial_conversion", {})
+        hist_trial = int(trial_conv.get("total_trials", 0) or 0)
+        converted = int(trial_conv.get("converted", 0) or 0)
+        conv_rate = trial_conv.get("conversion_rate_pct", 0)
+
+        col1 = f"当前试用中\n**{trial_users}人**"
+        col2 = f"试用→付费\n**{converted}/{hist_trial}（{conv_rate}%）**"
+
+        elements.append({"tag": "markdown", "content": "**试用会员情况**"})
+        elements.append({
+            "tag": "column_set",
+            "flex_mode": "stretch",
+            "background_style": "grey",
+            "columns": [
+                {"tag": "column", "width": "weighted", "weight": 1, "elements": [
+                    {"tag": "markdown", "content": col1, "text_align": "center"},
+                ]},
+                {"tag": "column", "width": "weighted", "weight": 1, "elements": [
+                    {"tag": "markdown", "content": col2, "text_align": "center"},
+                ]},
+            ],
+        })
+
+        # 会员分布 + MRR
         if distribution:
             elements.append(_distribution_chart(distribution))
         mrr_arpu = payment.get("mrr_arpu", [])
@@ -250,29 +276,38 @@ def _manufacturer_pie(manufacturer_dist: list[dict]) -> dict:
 
 
 def _retention_table(retention: list[dict]) -> dict:
-    """留存 markdown 表格。"""
+    """留存 markdown 表格，未完成的留存周期显示为 -。"""
     if not retention:
         return {"tag": "markdown", "content": "暂无留存数据"}
 
+    today = date.today()
     header = "| 激活日期 | 激活数 | D+1 | D+3 | D+7 |"
     separator = "|:---:|:---:|:---:|:---:|:---:|"
     rows: list[str] = []
 
     for row in retention:
         date_str = str(row.get("date", ""))
-        if len(date_str) > 5:
-            date_str = date_str[5:]
+        # 解析激活日期
+        try:
+            act_date = date.fromisoformat(date_str[:10])
+        except (ValueError, IndexError):
+            act_date = None
+
+        display_date = date_str[5:] if len(date_str) > 5 else date_str
         activated = int(row.get("activated_devices", 0) or 0)
         d1 = row.get("day_1")
         d3 = row.get("day_3")
         d7 = row.get("day_7")
 
-        def fmt(v):
+        def fmt(v, days):
+            # 如果激活日期 + D天 >= 今天，说明该周期还没结束
+            if act_date and act_date + timedelta(days=days) >= today:
+                return "-"
             if v is None:
                 return "-"
             return f"{float(v):.1f}%"
 
-        rows.append(f"| {date_str} | {activated} | {fmt(d1)} | {fmt(d3)} | {fmt(d7)} |")
+        rows.append(f"| {display_date} | {activated} | {fmt(d1, 1)} | {fmt(d3, 3)} | {fmt(d7, 7)} |")
 
     table_md = "\n".join([header, separator] + rows)
     return {"tag": "markdown", "content": table_md}

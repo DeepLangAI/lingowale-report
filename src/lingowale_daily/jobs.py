@@ -34,6 +34,8 @@ log = logging.getLogger(__name__)
 _RETENTION_INSIGHT_ID = 52
 # 新增付费用户趋势 insight ID
 _NEW_PAID_USERS_INSIGHT_ID = 176
+# 试用转正式付费转化率 insight ID
+_TRIAL_CONVERSION_INSIGHT_ID = 172
 # 小红书买量留存 insight ID
 _AD_RETENTION_INSIGHT_ID = 106
 
@@ -83,8 +85,8 @@ def _fetch_retention(settings: Settings) -> list[dict[str, Any]]:
     return recent
 
 
-def _fetch_new_paid_users(settings: Settings) -> list[dict[str, Any]]:
-    """从 insight #176 获取昨日新增付费用户（排除试用）。"""
+def _fetch_new_paid_users(settings: Settings) -> dict[str, list[dict[str, Any]]]:
+    """从 insight #176 获取昨日新增付费用户，分为付费和试用两组。"""
     url = f"{settings.posthog_host}/api/projects/{settings.posthog_project_id}/insights/{_NEW_PAID_USERS_INSIGHT_ID}"
     resp = httpx.get(url, headers={"Authorization": f"Bearer {settings.posthog_api_key}"}, timeout=30.0)
     resp.raise_for_status()
@@ -92,15 +94,13 @@ def _fetch_new_paid_users(settings: Settings) -> list[dict[str, Any]]:
 
     result_series = insight.get("result", [])
     if not result_series:
-        return []
+        return {"paid": [], "trial": []}
 
-    # 按 plan (custom_name) 汇总昨天的数据，排除试用
-    plan_counts: dict[str, int] = defaultdict(int)
+    paid_counts: dict[str, int] = defaultdict(int)
+    trial_counts: dict[str, int] = defaultdict(int)
 
     for series in result_series:
         custom_name = series.get("action", {}).get("custom_name", "")
-        if "试用" in custom_name:
-            continue
 
         data = series.get("data", [])
         if not data:
@@ -113,9 +113,15 @@ def _fetch_new_paid_users(settings: Settings) -> list[dict[str, Any]]:
             yesterday_count = int(data[-1] or 0)
 
         if yesterday_count > 0:
-            plan_counts[custom_name] += yesterday_count
+            if "试用" in custom_name:
+                trial_counts["试用"] += yesterday_count
+            else:
+                paid_counts[custom_name] += yesterday_count
 
-    return [{"plan": plan, "count": count} for plan, count in plan_counts.items()]
+    return {
+        "paid": [{"plan": plan, "count": count} for plan, count in paid_counts.items()],
+        "trial": [{"plan": plan, "count": count} for plan, count in trial_counts.items()],
+    }
 
 
 # ── 增长运营日报 ──
@@ -158,8 +164,10 @@ def _fetch_growth_report(settings: Settings) -> Metrics:
 
 def _fetch_payment_report(settings: Settings) -> Metrics:
     """拉取付费数据：新增付费 + 会员分布 + MRR/ARPU。"""
+    new_users = _fetch_new_paid_users(settings)
     payment = {
-        "new_subs": _fetch_new_paid_users(settings),
+        "new_subs": new_users["paid"],
+        "new_trial": new_users["trial"],
         "distribution": _query(settings, PAYMENT_MEMBERSHIP_DISTRIBUTION),
         "mrr_arpu": _query(settings, PAYMENT_MRR_ARPU),
     }
@@ -229,10 +237,15 @@ def _fetch_combined_report(settings: Settings) -> Metrics:
     retention = _fetch_retention(settings)
 
     # 付费
+    new_users = _fetch_new_paid_users(settings)
+    trial_conversion_result = query_insight(settings, _TRIAL_CONVERSION_INSIGHT_ID, refresh="force_cache")
+    trial_conversion = hogql_rows_to_dict(trial_conversion_result.rows, trial_conversion_result.columns)
     payment = {
-        "new_subs": _fetch_new_paid_users(settings),
+        "new_subs": new_users["paid"],
+        "new_trial": new_users["trial"],
         "distribution": _query(settings, PAYMENT_MEMBERSHIP_DISTRIBUTION),
         "mrr_arpu": _query(settings, PAYMENT_MRR_ARPU),
+        "trial_conversion": trial_conversion[0] if trial_conversion else {},
     }
 
     # 投放
