@@ -64,14 +64,12 @@ def _query(settings: Settings, sql: str, *, timeout: float = 30.0) -> list[dict[
 
 
 def _fetch_retention(settings: Settings) -> list[dict[str, Any]]:
-    """从 insight #52 缓存拉取留存数据，取最近 8 天（跳过今天）。"""
+    """从 insight #52 缓存拉取留存数据，取最近 8 天。"""
     result = query_insight(settings, _RETENTION_INSIGHT_ID, refresh="force_cache")
     rows = hogql_rows_to_dict(result.rows, result.columns)
 
     recent = []
     for row in rows:
-        if row.get("day_1") is None:
-            continue  # 跳过无次留数据的行（今天）
         if len(recent) >= 8:
             break
         recent.append({
@@ -106,11 +104,8 @@ def _fetch_new_paid_users(settings: Settings) -> dict[str, list[dict[str, Any]]]
         if not data:
             continue
 
-        # 昨天 = 倒数第二个（最后一个是今天）
-        if len(data) >= 2:
-            yesterday_count = int(data[-2] or 0)
-        else:
-            yesterday_count = int(data[-1] or 0)
+        # 最后一个就是昨天
+        yesterday_count = int(data[-1] or 0)
 
         if yesterday_count > 0:
             if "试用" in custom_name:
@@ -178,14 +173,12 @@ def _fetch_payment_report(settings: Settings) -> Metrics:
 # ── 投放日报 ──
 
 def _fetch_ad_retention(settings: Settings) -> list[dict[str, Any]]:
-    """从 insight #106 拉取小红书买量留存数据，取最近 8 天（跳过今天）。"""
+    """从 insight #106 拉取小红书买量留存数据，取最近 8 天。"""
     result = query_insight(settings, _AD_RETENTION_INSIGHT_ID, refresh="force_cache")
     rows = hogql_rows_to_dict(result.rows, result.columns)
 
     recent = []
     for row in rows:
-        if row.get("day_1") is None:
-            continue
         if len(recent) >= 8:
             break
         recent.append({
