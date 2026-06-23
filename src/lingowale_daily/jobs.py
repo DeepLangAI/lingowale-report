@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import date
 from typing import Any, Callable
 
 import httpx
@@ -64,12 +65,15 @@ def _query(settings: Settings, sql: str, *, timeout: float = 30.0) -> list[dict[
 
 
 def _fetch_retention(settings: Settings) -> list[dict[str, Any]]:
-    """从 insight #52 缓存拉取留存数据，取最近 8 天。"""
+    """从 insight #52 缓存拉取留存数据，取最近 8 天（排除今天）。"""
     result = query_insight(settings, _RETENTION_INSIGHT_ID, refresh="force_cache")
     rows = hogql_rows_to_dict(result.rows, result.columns)
+    today_str = date.today().strftime("%Y-%m-%d")
 
     recent = []
     for row in rows:
+        if str(row.get("日期", ""))[:10] == today_str:
+            continue
         if len(recent) >= 8:
             break
         recent.append({
@@ -173,12 +177,15 @@ def _fetch_payment_report(settings: Settings) -> Metrics:
 # ── 投放日报 ──
 
 def _fetch_ad_retention(settings: Settings) -> list[dict[str, Any]]:
-    """从 insight #106 拉取小红书买量留存数据，取最近 8 天。"""
+    """从 insight #106 拉取小红书买量留存数据，取最近 8 天（排除今天）。"""
     result = query_insight(settings, _AD_RETENTION_INSIGHT_ID, refresh="force_cache")
     rows = hogql_rows_to_dict(result.rows, result.columns)
+    today_str = date.today().strftime("%Y-%m-%d")
 
     recent = []
     for row in rows:
+        if str(row.get("日期", ""))[:10] == today_str:
+            continue
         if len(recent) >= 8:
             break
         recent.append({
