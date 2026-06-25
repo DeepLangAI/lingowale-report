@@ -21,6 +21,7 @@ from lingowale_daily.posthog.queries import (
     DEVICE_MANUFACTURER_YESTERDAY,
     PAYMENT_MEMBERSHIP_DISTRIBUTION,
     PAYMENT_MRR_ARPU,
+    PAYMENT_NEW_DEVICE_CONVERSION,
 )
 
 # 确保卡片模块被导入以触发 register
@@ -252,6 +253,7 @@ def _fetch_combined_report(settings: Settings) -> Metrics:
         "distribution": _query(settings, PAYMENT_MEMBERSHIP_DISTRIBUTION),
         "mrr_arpu": _query(settings, PAYMENT_MRR_ARPU),
         "trial_conversion": trial_conversion[0] if trial_conversion else {},
+        "new_device_conversion": _query(settings, PAYMENT_NEW_DEVICE_CONVERSION),
     }
 
     # 投放

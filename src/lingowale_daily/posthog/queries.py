@@ -79,3 +79,41 @@ PAYMENT_MRR_ARPU = """
 SELECT mrr, arpu, arppu, mau_user, paid_users
 FROM v_arpu
 """
+
+PAYMENT_NEW_DEVICE_CONVERSION = """
+SELECT
+    p.properties.plan_tier AS plan_tier,
+    p.properties.billing_period AS billing_period,
+    count(DISTINCT p.person_id) AS cnt
+FROM events p
+WHERE p.event = 'payment_completed'
+  AND p.person_id IN (
+    SELECT e2.person_id
+    FROM events e2
+    WHERE e2.event = 'app_install'
+      AND e2.properties.imei IN (
+        SELECT e.properties.imei AS device_imei
+        FROM events e
+        LEFT JOIN mysql.open_deeplang.imei_mapping old
+          ON e.properties.imei = old.cleaned_imei
+        WHERE e.properties.imei IS NOT NULL
+          AND e.properties.imei != ''
+          AND e.event = 'app_install'
+          AND old.cleaned_imei IS NULL
+        GROUP BY e.properties.imei
+        HAVING min(toDate(e.timestamp)) = today() - 1
+      )
+  )
+  AND p.distinct_id NOT IN (
+    '650881e6be2242c0b2db87712604db9b',
+    '645e0764a5b98dc9ebeeda49',
+    '0f06c8c94578444e9a5292d391ac9c25',
+    'a7d1154ce7e94a669b9626c18e090362',
+    'a8ce38e61e4145369caaef540942ac64',
+    '283aaf2aafdd4c49bbc4808a4472953c',
+    '9a153d7ddd864a9f94f055766204e5f1',
+    'fddff5b86e544295a26514b4fab3c4a2'
+  )
+GROUP BY plan_tier, billing_period
+ORDER BY cnt DESC
+"""

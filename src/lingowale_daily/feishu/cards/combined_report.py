@@ -29,6 +29,15 @@ _VALUE_KEYS = {
 _PLAN_LABELS = {"plus": "Plus", "pro": "Pro"}
 _PLAN_ORDER = ["plus月费", "plus年费", "pro月费", "pro年费"]
 
+_PERIOD_LABELS = {"monthly": "月费", "yearly": "年费", "trail": "月费试用"}
+
+
+def _conversion_label(plan: str, period: str) -> str:
+    """将 plan_tier + billing_period 转为可读标签。"""
+    plan_str = _PLAN_LABELS.get(plan, plan)
+    period_str = _PERIOD_LABELS.get(period, period)
+    return f"{plan_str}{period_str}"
+
 
 class CombinedReportCard:
     name = "combined_report"
@@ -108,47 +117,53 @@ class CombinedReportCard:
         elements: list[dict] = []
         payment = data.get("payment", {})
 
-        # 新增付费
-        new_subs = payment.get("new_subs", [])
-        new_trial = payment.get("new_trial", [])
-        elements.append({"tag": "markdown", "content": f"T-1（{yesterday}）新增付费用户（不含试用）"})
-        if new_subs:
-            elements.append(_new_subs_chart(new_subs))
+        # 新激活设备付费转化
+        new_device_conv = payment.get("new_device_conversion", [])
+        if new_device_conv:
+            parts: list[str] = []
+            for row in new_device_conv:
+                plan = row.get("plan_tier", "")
+                period = row.get("billing_period", "")
+                cnt = int(row.get("cnt", 0))
+                label = _conversion_label(plan, period)
+                parts.append(f"{label} {cnt}人")
+            conv_value = "、".join(parts)
         else:
-            elements.append({"tag": "markdown", "content": "昨日无新增付费"})
+            conv_value = "无"
 
-        # 试用会员情况 — 灰底网格展示
+        # 试用数据
+        new_trial = payment.get("new_trial", [])
         distribution = payment.get("distribution", [])
         trial_users = sum(int(r.get("member_count", 0)) for r in distribution if r.get("plan_status") == "trial")
         trial_conv = payment.get("trial_conversion", {})
         hist_trial = int(trial_conv.get("total_trials", 0) or 0)
         converted = int(trial_conv.get("converted", 0) or 0)
         conv_rate = trial_conv.get("conversion_rate_pct", 0)
+        trial_yesterday = sum(int(r.get("count", 0)) for r in new_trial)
 
-        col1 = f"当前试用中\n**{trial_users}人**"
-        col2 = f"试用→付费\n**{converted}/{hist_trial}（{conv_rate}%）**"
+        # 新增付费
+        new_subs = payment.get("new_subs", [])
+        subs_parts = [f"{r.get('plan', '')} {int(r.get('count', 0))}人" for r in new_subs if int(r.get("count", 0)) > 0]
+        subs_value = "、".join(subs_parts) if subs_parts else "无"
 
-        elements.append({"tag": "markdown", "content": "**试用会员情况**"})
-        elements.append({
-            "tag": "column_set",
-            "flex_mode": "stretch",
-            "background_style": "grey",
-            "columns": [
-                {"tag": "column", "width": "weighted", "weight": 1, "elements": [
-                    {"tag": "markdown", "content": col1, "text_align": "center"},
-                ]},
-                {"tag": "column", "width": "weighted", "weight": 1, "elements": [
-                    {"tag": "markdown", "content": col2, "text_align": "center"},
-                ]},
-            ],
-        })
+        # 汇总表格
+        table_md = (
+            "| 指标 | 数据 |\n"
+            "|:---|:---|\n"
+            f"| 新激活设备付费转化 | **{conv_value}** |\n"
+            f"| 昨日新增试用 | **{trial_yesterday}人** |\n"
+            f"| 当前试用中 | {trial_users}人 |\n"
+            f"| 试用→付费 | {converted}/{hist_trial}（{conv_rate}%） |\n"
+            f"| 昨日新增付费 | **{subs_value}** |"
+        )
+        elements.append({"tag": "markdown", "content": table_md})
 
-        # 会员分布 + MRR
-        if distribution:
-            elements.append(_distribution_chart(distribution))
+        # MRR/ARPU + 会员分布
         mrr_arpu = payment.get("mrr_arpu", [])
         if mrr_arpu:
             elements.append(_mrr_arpu_grid(mrr_arpu))
+        if distribution:
+            elements.append(_distribution_chart(distribution))
 
         elements.append({"tag": "markdown", "content": "[详情见 PostHog →](https://posthog.deeplang.tech/project/1/dashboard/24)"})
 
