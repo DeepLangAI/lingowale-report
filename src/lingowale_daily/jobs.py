@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Callable
 
 import httpx
@@ -98,6 +98,7 @@ def _fetch_new_paid_users(settings: Settings) -> dict[str, list[dict[str, Any]]]
     if not result_series:
         return {"paid": [], "trial": []}
 
+    yesterday_str = (date.today() - timedelta(days=1)).strftime("%-d-%b-%Y")
     paid_counts: dict[str, int] = defaultdict(int)
     trial_counts: dict[str, int] = defaultdict(int)
 
@@ -105,11 +106,16 @@ def _fetch_new_paid_users(settings: Settings) -> dict[str, list[dict[str, Any]]]
         custom_name = series.get("action", {}).get("custom_name", "")
 
         data = series.get("data", [])
-        if not data:
+        labels = series.get("labels", [])
+        if not data or not labels:
             continue
 
-        # 最后一个就是昨天
-        yesterday_count = int(data[-1] or 0)
+        # 按日期找昨天的值
+        yesterday_count = 0
+        for i, label in enumerate(labels):
+            if label == yesterday_str:
+                yesterday_count = int(data[i] or 0)
+                break
 
         if yesterday_count > 0:
             if "试用" in custom_name:
