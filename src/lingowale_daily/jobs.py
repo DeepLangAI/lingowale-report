@@ -146,12 +146,13 @@ def _fetch_growth_report(settings: Settings) -> Metrics:
     # 厂商分布
     manufacturer_dist = _query(settings, DEVICE_MANUFACTURER_YESTERDAY)
 
-    # 投放激活数（昨天）— 从 insight #106
+    # 投放激活数（昨天）— 从 insight #106，按日期精确匹配；无行 = 当天投放激活为 0
     ad_retention_result = query_insight(settings, _AD_RETENTION_INSIGHT_ID, refresh="force_cache")
     ad_rows = hogql_rows_to_dict(ad_retention_result.rows, ad_retention_result.columns)
+    yesterday_str = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
     ad_activated_yesterday = 0
     for row in ad_rows:
-        if row.get("day_1") is not None:
+        if str(row.get("日期", ""))[:10] == yesterday_str:
             ad_activated_yesterday = int(row.get("新激活设备数", 0) or 0)
             break
 
@@ -232,12 +233,13 @@ def _fetch_combined_report(settings: Settings) -> Metrics:
 
     manufacturer_dist = _query(settings, DEVICE_MANUFACTURER_YESTERDAY)
 
-    # 投放激活数（昨天）
+    # 投放激活数（昨天）— 按日期精确匹配；无行 = 当天投放激活为 0
     ad_retention_result = query_insight(settings, _AD_RETENTION_INSIGHT_ID, refresh="force_cache")
     ad_rows = hogql_rows_to_dict(ad_retention_result.rows, ad_retention_result.columns)
+    yesterday_str = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
     ad_activated_yesterday = 0
     for row in ad_rows:
-        if row.get("day_1") is not None:
+        if str(row.get("日期", ""))[:10] == yesterday_str:
             ad_activated_yesterday = int(row.get("新激活设备数", 0) or 0)
             break
 
