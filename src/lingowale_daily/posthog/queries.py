@@ -75,9 +75,14 @@ SELECT plan, plan_status, member_count, billing_cycle
 FROM v_membership_tier
 """
 
+# 注：不查 v_arpu（物化视图无定时刷新，会冻结在旧快照），直接从底层实时视图计算
 PAYMENT_MRR_ARPU = """
-SELECT mrr, arpu, arppu, mau_user, paid_users
-FROM v_arpu
+SELECT
+    (SELECT mrr_yuan FROM v_mrr) AS mrr,
+    round((SELECT mrr_yuan FROM v_mrr) / (SELECT mau_user FROM v_mau_user), 4) AS arpu,
+    round((SELECT mrr_yuan FROM v_mrr) / (SELECT paid_users FROM v_paying_users), 2) AS arppu,
+    (SELECT mau_user FROM v_mau_user) AS mau_user,
+    (SELECT paid_users FROM v_paying_users) AS paid_users
 """
 
 PAYMENT_NEW_DEVICE_CONVERSION = """
