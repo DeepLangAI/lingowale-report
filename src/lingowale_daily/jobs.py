@@ -22,6 +22,7 @@ from lingowale_daily.posthog.queries import (
     PAYMENT_MEMBERSHIP_DISTRIBUTION,
     PAYMENT_MRR_ARPU,
     PAYMENT_NEW_DEVICE_CONVERSION,
+    PAYMENT_TRIAL_ACTIVE,
 )
 
 # 确保卡片模块被导入以触发 register
@@ -177,6 +178,7 @@ def _fetch_payment_report(settings: Settings) -> Metrics:
         "new_trial": new_users["trial"],
         "distribution": _query(settings, PAYMENT_MEMBERSHIP_DISTRIBUTION),
         "mrr_arpu": _query(settings, PAYMENT_MRR_ARPU),
+        "trial_active": _query(settings, PAYMENT_TRIAL_ACTIVE),
     }
 
     return {"payment": payment}
@@ -256,6 +258,7 @@ def _fetch_combined_report(settings: Settings) -> Metrics:
         "mrr_arpu": _query(settings, PAYMENT_MRR_ARPU),
         "trial_conversion": trial_conversion[0] if trial_conversion else {},
         "new_device_conversion": _query(settings, PAYMENT_NEW_DEVICE_CONVERSION),
+        "trial_active": _query(settings, PAYMENT_TRIAL_ACTIVE),
     }
 
     # 投放

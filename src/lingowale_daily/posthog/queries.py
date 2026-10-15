@@ -70,9 +70,17 @@ ORDER BY cnt DESC
 
 # ── 付费模块 ──
 
+# 注：v_membership_tier 已于 2026-10-13 改为「真实付费会员档位分布」（派生自 v_paid_membership），
+# 输出 plan / billing_cycle / member_count 三列，不再有 plan_status，也不再含 trial 行。
 PAYMENT_MEMBERSHIP_DISTRIBUTION = """
-SELECT plan, plan_status, member_count, billing_cycle
+SELECT plan, member_count, billing_cycle
 FROM v_membership_tier
+"""
+
+# 当前试用中人数：口径与付费一致（未过期、非 free、剔除测试号），见视图 v_trial_members
+PAYMENT_TRIAL_ACTIVE = """
+SELECT count() AS trial_active
+FROM v_trial_members
 """
 
 # 注：不查 v_arpu（物化视图无定时刷新，会冻结在旧快照），直接从底层实时视图计算
@@ -85,6 +93,9 @@ SELECT
     (SELECT paid_users FROM v_paying_users) AS paid_users
 """
 
+# 新激活设备付费转化：昨天首装的新设备对应的用户中，昨天（激活当日 T+0）产生付款/试用的。
+# 注意：付款事件必须限定在激活当日——否则 p 上没有时间窗，任何「昨天换新机的老付费用户」
+# 都会被历史付款捞进来（用 person_id 关联时口径就与「新设备」解耦了）。
 PAYMENT_NEW_DEVICE_CONVERSION = """
 SELECT
     p.properties.plan_tier AS plan_tier,
@@ -92,6 +103,7 @@ SELECT
     count(DISTINCT p.person_id) AS cnt
 FROM events p
 WHERE p.event = 'payment_completed'
+  AND toDate(p.timestamp) = today() - 1
   AND p.person_id IN (
     SELECT e2.person_id
     FROM events e2

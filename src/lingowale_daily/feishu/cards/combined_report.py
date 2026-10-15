@@ -134,7 +134,8 @@ class CombinedReportCard:
         # 试用数据
         new_trial = payment.get("new_trial", [])
         distribution = payment.get("distribution", [])
-        trial_users = sum(int(r.get("member_count", 0)) for r in distribution if r.get("plan_status") == "trial")
+        trial_active = payment.get("trial_active", [])
+        trial_users = int(trial_active[0].get("trial_active", 0)) if trial_active else 0
         trial_conv = payment.get("trial_conversion", {})
         hist_trial = int(trial_conv.get("total_trials", 0) or 0)
         converted = int(trial_conv.get("converted", 0) or 0)
@@ -355,13 +356,10 @@ def _new_subs_chart(new_subs: list[dict]) -> dict:
 
 
 def _distribution_chart(distribution: list[dict]) -> dict:
-    """会员分布饼图（不含试用）。"""
+    """付费会员分布饼图（v_membership_tier 口径：仅真实付费会员）。"""
     values: list[dict] = []
     total = 0
     for row in distribution:
-        status = row.get("plan_status", "")
-        if status == "trial":
-            continue
         plan = _PLAN_LABELS.get(row.get("plan", ""), row.get("plan", "unknown"))
         cycle = row.get("billing_cycle", "")
         label = f"{plan}-{cycle}"

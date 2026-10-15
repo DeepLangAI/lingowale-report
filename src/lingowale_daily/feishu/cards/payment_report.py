@@ -99,13 +99,10 @@ def _new_subs_chart(new_subs: list[dict]) -> dict:
 
 
 def _distribution_chart(distribution: list[dict]) -> dict:
-    """当前会员分布 — 饼图（不含试用）。"""
+    """当前付费会员分布 — 饼图（v_membership_tier 口径：仅真实付费会员）。"""
     values: list[dict] = []
     total = 0
     for row in distribution:
-        status = row.get("plan_status", "")
-        if status == "trial":
-            continue
         plan = _PLAN_LABELS.get(row.get("plan", ""), row.get("plan", "unknown"))
         cycle = row.get("billing_cycle", "")
         label = f"{plan}-{cycle}"
